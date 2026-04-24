@@ -1,0 +1,99 @@
+@page "/dashboard"
+@inject AuthStateService AuthStateService
+
+<AuthGuard>
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="fw-bold">Welcome, @AuthStateService.CurrentUser?.FullName</h2>
+            <p class="text-muted">You are logged in as a <span class="badge bg-primary">@AuthStateService.CurrentRole</span>.</p>
+        </div>
+    </div>
+
+    @if (AuthStateService.CurrentRole == Role.Admin)
+    {
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 h-100 border-start border-4 border-primary">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted fw-bold">Manage Students</h5>
+                        <p class="card-text">Add, edit, or remove students from the system.</p>
+                        <a href="/admin/students" class="btn btn-outline-primary">Go to Students</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 h-100 border-start border-4 border-success">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted fw-bold">Manage Courses</h5>
+                        <p class="card-text">Create and update course offerings.</p>
+                        <a href="/admin/courses" class="btn btn-outline-success">Go to Courses</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 h-100 border-start border-4 border-warning">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted fw-bold">Broadcasts</h5>
+                        <p class="card-text">Send announcements to users.</p>
+                        <a href="/admin/notifications" class="btn btn-outline-warning">Send Broadcast</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (AuthStateService.CurrentRole == Role.Faculty)
+    {
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 h-100 border-start border-4 border-primary">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted fw-bold">My Courses</h5>
+                        <p class="card-text">View the courses you are teaching.</p>
+                        <a href="/faculty/courses" class="btn btn-outline-primary">View Courses</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 h-100 border-start border-4 border-success">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted fw-bold">Submit Grades</h5>
+                        <p class="card-text">Enter marks for your enrolled students.</p>
+                        <a href="/faculty/grades" class="btn btn-outline-success">Grade Students</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (AuthStateService.CurrentRole == Role.Student)
+    {
+        var student = AuthStateService.CurrentUser as Models.Student;
+        
+        <div class="row g-4">
+            <div class="col-md-4">
+                <StudentCard Student="student" />
+            </div>
+            <div class="col-md-8">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="card shadow-sm border-0 h-100 border-start border-4 border-primary">
+                            <div class="card-body">
+                                <h5 class="card-title text-muted fw-bold">Course Enrollment</h5>
+                                <p class="card-text">Register for new courses.</p>
+                                <a href="/student/enroll" class="btn btn-outline-primary">Enroll</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card shadow-sm border-0 h-100 border-start border-4 border-success">
+                            <div class="card-body">
+                                <h5 class="card-title text-muted fw-bold">My Grades</h5>
+                                <p class="card-text">View your academic performance.</p>
+                                <a href="/student/grades" class="btn btn-outline-success">View Grades</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</AuthGuard>

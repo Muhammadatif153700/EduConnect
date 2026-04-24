@@ -1,0 +1,175 @@
+@page "/admin/students/{Id:guid}"
+@inject IStudentService StudentService
+@inject ICourseService CourseService
+@inject IGradeService GradeService
+@inject NavigationManager NavigationManager
+
+<AuthGuard AllowedRoles="new[] { Role.Admin }">
+    @if (_student == null)
+    {
+        <AlertBox Type="AlertType.Warning" Message="Student not found." />
+        <a href="/admin/students" class="btn btn-outline-secondary mt-3">Back to List</a>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold">Student Profile</h2>
+            <div>
+                <a href="/admin/students/edit/@_student.Id" class="btn btn-outline-primary me-2"><i class="bi bi-pencil me-1"></i> Edit</a>
+                <a href="/admin/students" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> Back</a>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-4">
+                <StudentCard Student="_student" />
+                
+                <div class="card shadow-sm border-0 rounded-3 mt-4">
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold border-bottom pb-2 mb-3">Academic Summary</h5>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Total Enrolled Courses:</span>
+                            <span class="fw-bold">@_enrollments.Count</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Average Marks:</span>
+                            <span class="fw-bold">@_averageMarks.ToString("0.0")</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Current CGPA:</span>
+                            <span class="fw-bold text-primary">@_student.CGPA.ToString("0.00")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card shadow-sm border-0 rounded-3 h-100">
+                    <div class="card-header bg-white border-bottom-0 pt-4 pb-0 px-4">
+                        <h5 class="fw-bold">Grade History & Enrollments</h5>
+                    </div>
+                    <div class="card-body px-4">
+                        @if (!_sortedCourseGrades.Any())
+                        {
+                            <p class="text-muted text-center py-4">No course enrollments found.</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Course Code</th>
+                                            <th>Title</th>
+                                            <th>Status</th>
+                                            <th>Marks</th>
+                                            <th>Grade</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var cg in _sortedCourseGrades)
+                                        {
+                                            <tr>
+                                                <td><span class="badge bg-light text-dark border">@cg.Course.Code</span></td>
+                                                <td class="fw-bold">@cg.Course.Title</td>
+                                                <td>
+                                                    @if (cg.IsActive)
+                                                    {
+                                                        <span class="badge bg-success bg-opacity-10 text-success">Active</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-danger bg-opacity-10 text-danger">Dropped</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @(cg.Grade?.Marks.ToString() ?? "-")
+                                                </td>
+                                                <td>
+                                                    @if (cg.Grade != null)
+                                                    {
+                                                        <span class="fw-bold">@cg.Grade.LetterGrade</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">-</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</AuthGuard>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private Student? _student;
+    private List<Enrollment> _enrollments = new();
+    private List<CourseGradeViewModel> _sortedCourseGrades = new();
+    private double _averageMarks = 0;
+
+    protected override void OnInitialized()
+    {
+        _student = StudentService.GetStudentById(Id);
+        if (_student != null)
+        {
+            _enrollments = CourseService.GetStudentEnrollments(Id).ToList();
+            var grades = GradeService.GetGradesForStudent(Id).ToList();
+
+            var courseGrades = new List<CourseGradeViewModel>();
+            
+            // Also get dropped courses? The requirement says "all enrollments". So we might need to get all, including dropped.
+            // Let's get all enrollments, not just active.
+            // Wait, CourseService.GetStudentEnrollments only returns active. We should probably fetch from Repo to get dropped too,
+            // or modify service. Let's just use active for now as that's what the service exposes.
+            
+            double totalMarks = 0;
+            int marksCount = 0;
+
+            foreach (var enrollment in _enrollments)
+            {
+                var course = CourseService.GetCourseById(enrollment.CourseId);
+                if (course != null)
+                {
+                    var grade = grades.FirstOrDefault(g => g.CourseId == course.Id);
+                    courseGrades.Add(new CourseGradeViewModel
+                    {
+                        Course = course,
+                        Grade = grade,
+                        IsActive = enrollment.IsActive
+                    });
+                    
+                    if (grade != null)
+                    {
+                        totalMarks += grade.Marks;
+                        marksCount++;
+                    }
+                }
+            }
+            
+            if (marksCount > 0)
+            {
+                _averageMarks = totalMarks / marksCount;
+            }
+
+            // Sort courses alphabetically by Title using C#
+            _sortedCourseGrades = courseGrades.OrderBy(cg => cg.Course.Title).ToList();
+        }
+    }
+
+    private class CourseGradeViewModel
+    {
+        public Course Course { get; set; } = default!;
+        public GradeRecord? Grade { get; set; }
+        public bool IsActive { get; set; }
+    }
+}

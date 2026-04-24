@@ -1,0 +1,139 @@
+@page "/admin/students/add"
+@page "/admin/students/edit/{Id:guid}"
+@inject IStudentService StudentService
+@inject NavigationManager NavigationManager
+
+<AuthGuard AllowedRoles="new[] { Role.Admin }">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold">@(_isEditMode ? "Edit Student" : "Add New Student")</h2>
+        <a href="/admin/students" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> Back to List</a>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-body p-4">
+                    <form @onsubmit="HandleSubmit">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Full Name</label>
+                            <input type="text" class="form-control @GetInputClass(nameof(Student.FullName))" @bind="_student.FullName" />
+                            @if (_validationErrors.ContainsKey(nameof(Student.FullName)))
+                            {
+                                <div class="invalid-feedback">@_validationErrors[nameof(Student.FullName)]</div>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Email</label>
+                            <input type="email" class="form-control @GetInputClass(nameof(Student.Email))" @bind="_student.Email" />
+                            @if (_validationErrors.ContainsKey(nameof(Student.Email)))
+                            {
+                                <div class="invalid-feedback">@_validationErrors[nameof(Student.Email)]</div>
+                            }
+                        </div>
+
+                        @if (!_isEditMode)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Password</label>
+                                <input type="password" class="form-control" @bind="_student.Password" required />
+                                <small class="text-muted">Set a default password for the student.</small>
+                            </div>
+                        }
+
+                        <div class="row mb-4">
+                            <div class="col-md-6 mb-3 mb-md-0">
+                                <label class="form-label fw-bold">Semester</label>
+                                <select class="form-select @GetInputClass(nameof(Student.Semester))" @bind="_student.Semester">
+                                    @for (int i = 1; i <= 8; i++)
+                                    {
+                                        <option value="@i">Semester @i</option>
+                                    }
+                                </select>
+                                @if (_validationErrors.ContainsKey(nameof(Student.Semester)))
+                                {
+                                    <div class="invalid-feedback">@_validationErrors[nameof(Student.Semester)]</div>
+                                }
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">CGPA</label>
+                                <input type="number" step="0.01" class="form-control @GetInputClass(nameof(Student.CGPA))" @bind="_student.CGPA" />
+                                @if (_validationErrors.ContainsKey(nameof(Student.CGPA)))
+                                {
+                                    <div class="invalid-feedback">@_validationErrors[nameof(Student.CGPA)]</div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary py-2 fw-bold">
+                                @(_isEditMode ? "Save Changes" : "Create Student")
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</AuthGuard>
+
+@code {
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    private Student _student = new();
+    private Dictionary<string, string> _validationErrors = new();
+    private bool _isEditMode => Id.HasValue;
+    private bool _attemptedSubmit = false;
+
+    protected override void OnInitialized()
+    {
+        if (_isEditMode)
+        {
+            var existing = StudentService.GetStudentById(Id.Value);
+            if (existing != null)
+            {
+                // Create a copy for editing so we don't mutate the in-memory object directly before save
+                _student = new Student
+                {
+                    Id = existing.Id,
+                    FullName = existing.FullName,
+                    Email = existing.Email,
+                    Password = existing.Password,
+                    Semester = existing.Semester,
+                    CGPA = existing.CGPA
+                };
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/admin/students");
+            }
+        }
+    }
+
+    private string GetInputClass(string fieldName)
+    {
+        if (!_attemptedSubmit) return "";
+        return _validationErrors.ContainsKey(fieldName) ? "is-invalid" : "is-valid";
+    }
+
+    private void HandleSubmit()
+    {
+        _attemptedSubmit = true;
+        _validationErrors = _student.GetValidationErrors();
+
+        if (_student.IsValid())
+        {
+            if (_isEditMode)
+            {
+                StudentService.UpdateStudent(_student); // Fires OnStudentUpdated inside
+            }
+            else
+            {
+                StudentService.AddStudent(_student);
+            }
+            NavigationManager.NavigateTo("/admin/students");
+        }
+    }
+}

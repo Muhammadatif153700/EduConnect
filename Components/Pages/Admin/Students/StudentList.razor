@@ -1,0 +1,115 @@
+@page "/admin/students"
+@inject IStudentService StudentService
+@inject NavigationManager NavigationManager
+
+<AuthGuard AllowedRoles="new[] { Role.Admin }">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold">Manage Students</h2>
+        <a href="/admin/students/add" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i> Add Student</a>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <AlertBox Type="AlertType.Error" Message="@_errorMessage" />
+    }
+
+    <div class="card shadow-sm border-0 rounded-3 mb-4">
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <!-- Two-way binding for live search -->
+                        <input type="text" class="form-control border-start-0 ps-0" placeholder="Search by name or email..." @bind="_searchTerm" @bind:event="oninput" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Semester</th>
+                            <th>CGPA</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!FilteredStudents.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">No students found.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var student in FilteredStudents)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                                @(student.FullName.FirstOrDefault().ToString().ToUpper())
+                                            </div>
+                                            <span class="fw-bold">@student.FullName</span>
+                                        </div>
+                                    </td>
+                                    <td>@student.Email</td>
+                                    <td>@student.Semester</td>
+                                    <td>
+                                        <span class="badge @(student.CGPA >= 3.0 ? "bg-success" : student.CGPA >= 2.0 ? "bg-warning text-dark" : "bg-danger")">
+                                            @student.CGPA.ToString("0.00")
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="btn-group">
+                                            <a href="/admin/students/@student.Id" class="btn btn-sm btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
+                                            <a href="/admin/students/edit/@student.Id" class="btn btn-sm btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => PromptDelete(student.Id)" title="Delete"><i class="bi bi-trash"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <ConfirmDialog @ref="_confirmDialog" 
+                   Title="Delete Student" 
+                   Message="Are you sure you want to delete this student? This action cannot be undone." 
+                   OnConfirmed="DeleteStudent" />
+</AuthGuard>
+
+@code {
+    private string _searchTerm = string.Empty;
+    private string _errorMessage = string.Empty;
+    private ConfirmDialog _confirmDialog = default!;
+    private Guid _studentToDelete;
+
+    // Computed property for filtered students
+    private IEnumerable<Student> FilteredStudents => StudentService.SearchStudents(_searchTerm);
+
+    private void PromptDelete(Guid id)
+    {
+        _errorMessage = string.Empty;
+        _studentToDelete = id;
+        _confirmDialog.Show();
+    }
+
+    private void DeleteStudent()
+    {
+        try
+        {
+            StudentService.DeleteStudent(_studentToDelete);
+        }
+        catch (StudentHasActiveEnrollmentsException ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+}

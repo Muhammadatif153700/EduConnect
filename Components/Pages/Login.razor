@@ -1,0 +1,126 @@
+@page "/login"
+@inject AuthStateService AuthStateService
+@inject NavigationManager NavigationManager
+@inject IRepository<Models.Student> StudentRepo
+@inject IRepository<Models.Faculty> FacultyRepo
+@inject IRepository<Models.Admin> AdminRepo
+
+<div class="row justify-content-center align-items-center min-vh-100 mt-n5">
+    <div class="col-md-5 col-lg-4">
+        <div class="card shadow-lg border-0 rounded-4 p-4">
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <i class="bi bi-mortarboard-fill text-primary" style="font-size: 3rem;"></i>
+                    <h2 class="fw-bold mt-2">Welcome Back</h2>
+                    <p class="text-muted">Sign in to EduConnect</p>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <AlertBox Type="AlertType.Error" Message="@_errorMessage" />
+                }
+
+                <EditForm Model="_loginModel" OnValidSubmit="HandleLogin" FormName="LoginForm">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="form-floating mb-3">
+                        <InputText id="email" class="form-control rounded-3" @bind-Value="_loginModel.Email" placeholder="name@example.com" />
+                        <label for="email">Email address</label>
+                    </div>
+                    
+                    <div class="form-floating mb-4">
+                        <InputText type="password" id="password" class="form-control rounded-3" @bind-Value="_loginModel.Password" placeholder="Password" />
+                        <label for="password">Password</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-3 rounded-3 fw-bold shadow-sm">
+                        @if (_isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <span>Signing in...</span>
+                        }
+                        else
+                        {
+                            <span>Sign In</span>
+                        }
+                    </button>
+                </EditForm>
+                
+                <div class="mt-4 text-center">
+                    <small class="text-muted d-block mb-2">Demo Accounts:</small>
+                    <div class="d-flex justify-content-center gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick='() => SetDemo("admin@edu.com")'>Admin</button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick='() => SetDemo("faculty@edu.com")'>Faculty</button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick='() => SetDemo("student@edu.com")'>Student</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginModel _loginModel = new();
+    private string _errorMessage = string.Empty;
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        // Seed some demo users if they don't exist
+        SeedData();
+        
+        if (AuthStateService.IsLoggedIn)
+        {
+            NavigationManager.NavigateTo("/dashboard");
+        }
+    }
+
+    private void SetDemo(string email)
+    {
+        _loginModel.Email = email;
+        _loginModel.Password = "password";
+    }
+
+    private async Task HandleLogin()
+    {
+        _errorMessage = string.Empty;
+        _isLoading = true;
+        
+        // Simulate network delay
+        await Task.Delay(500);
+
+        Person? user = AdminRepo.Find(a => a.Email == _loginModel.Email && a.Password == _loginModel.Password).FirstOrDefault();
+        if (user == null)
+            user = FacultyRepo.Find(f => f.Email == _loginModel.Email && f.Password == _loginModel.Password).FirstOrDefault();
+        if (user == null)
+            user = StudentRepo.Find(s => s.Email == _loginModel.Email && s.Password == _loginModel.Password).FirstOrDefault();
+
+        if (user != null)
+        {
+            AuthStateService.Login(user);
+            NavigationManager.NavigateTo("/dashboard");
+        }
+        else
+        {
+            _errorMessage = "Invalid email or password.";
+        }
+        
+        _isLoading = false;
+    }
+
+    private void SeedData()
+    {
+        if (!AdminRepo.GetAll().Any())
+        {
+            AdminRepo.Add(new Models.Admin { FullName = "System Admin", Email = "admin@edu.com", Password = "password" });
+            FacultyRepo.Add(new Models.Faculty { FullName = "Dr. Smith", Email = "faculty@edu.com", Password = "password", Department = "Computer Science" });
+            StudentRepo.Add(new Models.Student { FullName = "John Doe", Email = "student@edu.com", Password = "password", Semester = 3, CGPA = 3.8 });
+        }
+    }
+
+    public class LoginModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}

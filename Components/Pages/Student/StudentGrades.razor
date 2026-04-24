@@ -1,0 +1,141 @@
+@page "/student/grades"
+@inject IGradeService GradeService
+@inject ICourseService CourseService
+@inject AuthStateService AuthStateService
+
+<AuthGuard AllowedRoles="new[] { Role.Student }">
+    <div class="mb-4">
+        <h2 class="fw-bold">My Grades</h2>
+        <p class="text-muted">Review your academic performance.</p>
+    </div>
+
+    @if (_student != null)
+    {
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 border-start border-4 border-primary h-100">
+                    <div class="card-body">
+                        <h5 class="text-muted mb-1">Cumulative GPA</h5>
+                        <h1 class="display-4 fw-bold @(_student.CGPA >= 3.0 ? "text-success" : _student.CGPA >= 2.0 ? "text-warning" : "text-danger")">
+                            @_student.CGPA.ToString("0.00")
+                        </h1>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body d-flex flex-column justify-content-center">
+                        <p class="mb-1"><strong>Total Credits:</strong> @_totalCredits</p>
+                        <p class="mb-0"><strong>Enrollment Status:</strong> Active</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white border-bottom-0 pt-4 pb-2 px-4">
+                <h5 class="fw-bold">Course Grades</h5>
+            </div>
+            <div class="card-body p-0">
+                <GradeTable Grades="_grades" IsEditable="false" CourseNames="_courseNames" />
+            </div>
+        </div>
+        
+        <div class="mt-4 card shadow-sm border-0">
+             <div class="card-header bg-white border-bottom-0 pt-4 pb-2 px-4">
+                <h5 class="fw-bold">Manage Enrollments</h5>
+            </div>
+            <div class="card-body">
+                @if (_activeEnrollments.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <tbody>
+                                @foreach (var enrollment in _activeEnrollments)
+                                {
+                                    var course = CourseService.GetCourseById(enrollment.CourseId);
+                                    if (course != null)
+                                    {
+                                        <tr>
+                                            <td class="fw-bold">@course.Code - @course.Title</td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => PromptDrop(course.Id)">Drop Course</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">You have no active enrollments.</p>
+                }
+            </div>
+        </div>
+        
+        <ConfirmDialog @ref="_confirmDropDialog" 
+                   Title="Drop Course" 
+                   Message="Are you sure you want to drop this course? You will not be able to re-enroll in the same semester." 
+                   OnConfirmed="DropCourse" />
+    }
+</AuthGuard>
+
+@code {
+    private Models.Student? _student;
+    private List<GradeRecord> _grades = new();
+    private Dictionary<Guid, string> _courseNames = new();
+    private int _totalCredits = 0;
+    
+    private List<Models.Enrollment> _activeEnrollments = new();
+    private ConfirmDialog _confirmDropDialog = default!;
+    private Guid _courseToDrop;
+
+    protected override void OnInitialized()
+    {
+        LoadData();
+    }
+
+    private void LoadData()
+    {
+        _student = AuthStateService.CurrentUser as Models.Student;
+        if (_student != null)
+        {
+            _grades = GradeService.GetGradesForStudent(_student.Id).ToList();
+            
+            _activeEnrollments = CourseService.GetStudentEnrollments(_student.Id).ToList();
+            
+            _courseNames.Clear();
+            _totalCredits = 0;
+            
+            // We need to show grades for courses even if dropped, maybe? 
+            // Usually grades are only for completed courses, but let's map names for all grades.
+            foreach (var grade in _grades)
+            {
+                var course = CourseService.GetCourseById(grade.CourseId);
+                if (course != null)
+                {
+                    _courseNames[course.Id] = course.Code + " - " + course.Title;
+                    // Compute total credits from graded courses
+                    _totalCredits += course.CreditHours;
+                }
+            }
+        }
+    }
+    
+    private void PromptDrop(Guid courseId)
+    {
+        _courseToDrop = courseId;
+        _confirmDropDialog.Show();
+    }
+
+    private void DropCourse()
+    {
+        if (_student != null)
+        {
+            CourseService.DropCourse(_student.Id, _courseToDrop);
+            LoadData(); // refresh UI
+        }
+    }
+}

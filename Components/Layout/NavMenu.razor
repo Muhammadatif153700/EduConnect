@@ -1,0 +1,138 @@
+@inject NavigationManager NavigationManager
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="/"><i class="bi bi-mortarboard-fill me-2"></i>EduConnect</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                @if (AuthState?.IsLoggedIn == true)
+                {
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="/dashboard" Match="NavLinkMatch.All">Dashboard</NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="/courses">Course Catalog</NavLink>
+                    </li>
+                    
+                    @if (AuthState.CurrentRole == Role.Admin)
+                    {
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Admin</a>
+                            <ul class="dropdown-menu shadow-sm">
+                                <li><NavLink class="dropdown-item" href="/admin/students">Manage Students</NavLink></li>
+                                <li><NavLink class="dropdown-item" href="/admin/courses">Manage Courses</NavLink></li>
+                                <li><NavLink class="dropdown-item" href="/admin/reports/grades">Grade Reports</NavLink></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><NavLink class="dropdown-item" href="/admin/notifications">Broadcast Announcement</NavLink></li>
+                            </ul>
+                        </li>
+                    }
+                    else if (AuthState.CurrentRole == Role.Faculty)
+                    {
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Faculty</a>
+                            <ul class="dropdown-menu shadow-sm">
+                                <li><NavLink class="dropdown-item" href="/faculty/courses">My Courses</NavLink></li>
+                                <li><NavLink class="dropdown-item" href="/faculty/grades">Submit Grades</NavLink></li>
+                            </ul>
+                        </li>
+                    }
+                    else if (AuthState.CurrentRole == Role.Student)
+                    {
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Student</a>
+                            <ul class="dropdown-menu shadow-sm">
+                                <li><NavLink class="dropdown-item" href="/student/enroll">Enroll in Courses</NavLink></li>
+                                <li><NavLink class="dropdown-item" href="/student/grades">My Grades</NavLink></li>
+                            </ul>
+                        </li>
+                    }
+                }
+            </ul>
+
+            @if (AuthState?.IsLoggedIn == true)
+            {
+                <div class="d-flex align-items-center">
+                    <NotificationBell />
+                    <div class="ms-3 text-light d-none d-md-block">
+                        <span class="fw-bold me-2">@AuthState.CurrentUser?.FullName</span>
+                        <span class="badge bg-light text-primary">@AuthState.CurrentRole</span>
+                        @if (AuthState.CurrentRole == Role.Student)
+                        {
+                            <span class="badge bg-secondary ms-1">Enrolled: @StudentEnrolledCredits Credits</span>
+                        }
+                    </div>
+                    <button class="btn btn-outline-light btn-sm ms-3" @onclick="Logout">Logout</button>
+                </div>
+            }
+            else
+            {
+                <div class="d-flex">
+                    <NavLink class="btn btn-light" href="/login">Login</NavLink>
+                </div>
+            }
+        </div>
+    </div>
+</nav>
+
+@code {
+    [CascadingParameter]
+    public AuthStateService? AuthState { get; set; }
+    
+    [Inject]
+    public ICourseService CourseService { get; set; } = default!;
+
+    private int StudentEnrolledCredits = 0;
+
+    protected override void OnInitialized()
+    {
+        if (AuthState != null)
+        {
+            AuthState.OnAuthStateChanged += StateHasChanged;
+            CourseService.OnEnrollmentChanged += HandleEnrollmentChanged;
+            UpdateStudentCredits();
+        }
+    }
+
+    private void HandleEnrollmentChanged(Guid studentId)
+    {
+        if (AuthState?.CurrentUser?.Id == studentId)
+        {
+            UpdateStudentCredits();
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void UpdateStudentCredits()
+    {
+        if (AuthState?.CurrentRole == Role.Student && AuthState.CurrentUser != null)
+        {
+            var enrollments = CourseService.GetStudentEnrollments(AuthState.CurrentUser.Id);
+            StudentEnrolledCredits = 0;
+            foreach(var e in enrollments)
+            {
+                var c = CourseService.GetCourseById(e.CourseId);
+                if (c != null) StudentEnrolledCredits += c.CreditHours;
+            }
+        }
+    }
+
+    private void Logout()
+    {
+        AuthState?.Logout();
+        NavigationManager.NavigateTo("/login");
+    }
+
+    public void Dispose()
+    {
+        if (AuthState != null)
+        {
+            AuthState.OnAuthStateChanged -= StateHasChanged;
+            CourseService.OnEnrollmentChanged -= HandleEnrollmentChanged;
+        }
+    }
+}

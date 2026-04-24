@@ -1,0 +1,172 @@
+@page "/admin/courses"
+@inject ICourseService CourseService
+@inject NavigationManager NavigationManager
+
+<AuthGuard AllowedRoles="new[] { Role.Admin }">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold">Manage Courses</h2>
+        <button class="btn btn-primary" @onclick="ShowAddForm"><i class="bi bi-plus-lg me-1"></i> Add Course</button>
+    </div>
+
+    @if (_showForm)
+    {
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+                <h5 class="card-title fw-bold mb-3">@(_isEditMode ? "Edit Course" : "Add Course")</h5>
+                <form @onsubmit="HandleSubmit">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Course Code</label>
+                            <input type="text" class="form-control" @bind="_courseModel.Code" />
+                        </div>
+                        <div class="col-md-5 mb-3">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-control" @bind="_courseModel.Title" />
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">Credit Hours</label>
+                            <input type="number" class="form-control" @bind="_courseModel.CreditHours" min="1" max="4" />
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">Max Capacity</label>
+                            <input type="number" class="form-control" @bind="_courseModel.MaxCapacity" min="1" />
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="HideForm">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Course</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Code</th>
+                            <th>Title</th>
+                            <th>Credits</th>
+                            <th>Capacity</th>
+                            <th>Status</th>
+                            <th class="text-end pe-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!_courses.Any())
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No courses found.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var course in _courses)
+                            {
+                                <tr>
+                                    <td class="ps-4"><span class="badge bg-light text-primary border">@course.Code</span></td>
+                                    <td class="fw-bold">@course.Title</td>
+                                    <td>@course.CreditHours</td>
+                                    <td>@course.CurrentEnrollment / @course.MaxCapacity</td>
+                                    <td>
+                                        <span class="badge @(course.Status == CourseStatus.Open ? "bg-success" : course.Status == CourseStatus.AlmostFull ? "bg-warning text-dark" : "bg-danger")">
+                                            @course.Status
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditCourse(course)"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => PromptDelete(course.Id)"><i class="bi bi-trash"></i></button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <ConfirmDialog @ref="_confirmDialog" 
+                   Title="Delete Course" 
+                   Message="Are you sure you want to delete this course? All enrollments and grades will be lost." 
+                   OnConfirmed="DeleteCourse" />
+</AuthGuard>
+
+@code {
+    private IEnumerable<Course> _courses = new List<Course>();
+    private bool _showForm = false;
+    private bool _isEditMode = false;
+    private Course _courseModel = new();
+    private ConfirmDialog _confirmDialog = default!;
+    private Guid _courseToDelete;
+
+    protected override void OnInitialized()
+    {
+        LoadCourses();
+    }
+
+    private void LoadCourses()
+    {
+        _courses = CourseService.GetAllCourses().OrderBy(c => c.Code).ToList();
+    }
+
+    private void ShowAddForm()
+    {
+        _courseModel = new Course();
+        _isEditMode = false;
+        _showForm = true;
+    }
+
+    private void EditCourse(Course course)
+    {
+        _courseModel = new Course
+        {
+            Id = course.Id,
+            Code = course.Code,
+            Title = course.Title,
+            CreditHours = course.CreditHours,
+            MaxCapacity = course.MaxCapacity,
+            CurrentEnrollment = course.CurrentEnrollment,
+            FacultyId = course.FacultyId
+        };
+        _isEditMode = true;
+        _showForm = true;
+    }
+
+    private void HideForm()
+    {
+        _showForm = false;
+    }
+
+    private void HandleSubmit()
+    {
+        if (_courseModel.IsValid())
+        {
+            if (_isEditMode)
+            {
+                CourseService.UpdateCourse(_courseModel);
+            }
+            else
+            {
+                CourseService.AddCourse(_courseModel);
+            }
+            HideForm();
+            LoadCourses();
+        }
+    }
+
+    private void PromptDelete(Guid id)
+    {
+        _courseToDelete = id;
+        _confirmDialog.Show();
+    }
+
+    private void DeleteCourse()
+    {
+        CourseService.DeleteCourse(_courseToDelete);
+        LoadCourses();
+    }
+}

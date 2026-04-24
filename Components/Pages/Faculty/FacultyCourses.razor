@@ -1,0 +1,41 @@
+@page "/faculty/courses"
+@inject ICourseService CourseService
+@inject AuthStateService AuthStateService
+
+<AuthGuard AllowedRoles="new[] { Role.Faculty }">
+    <div class="mb-4">
+        <h2 class="fw-bold">My Assigned Courses</h2>
+        <p class="text-muted">Courses you are currently teaching.</p>
+    </div>
+
+    <div class="row g-4">
+        @if (!_myCourses.Any())
+        {
+            <div class="col-12 text-center text-muted py-5">
+                <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
+                <p class="mt-3">You are not assigned to any courses.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var course in _myCourses)
+            {
+                <div class="col-md-6 col-lg-4">
+                    <CourseCard Course="course" ShowEnrollButton="false" />
+                </div>
+            }
+        }
+    </div>
+</AuthGuard>
+
+@code {
+    private IEnumerable<Course> _myCourses = new List<Course>();
+
+    protected override void OnInitialized()
+    {
+        if (AuthStateService.CurrentUser != null)
+        {
+            _myCourses = CourseService.GetCoursesByFaculty(AuthStateService.CurrentUser.Id).OrderBy(c => c.Code).ToList();
+        }
+    }
+}

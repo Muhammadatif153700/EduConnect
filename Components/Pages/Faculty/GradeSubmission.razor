@@ -1,0 +1,152 @@
+@page "/faculty/grades"
+@inject IGradeService GradeService
+@inject ICourseService CourseService
+@inject AuthStateService AuthStateService
+
+<AuthGuard AllowedRoles="new[] { Role.Faculty }">
+    <div class="mb-4">
+        <h2 class="fw-bold">Submit Grades</h2>
+        <p class="text-muted">Select a course and enter marks for enrolled students.</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_successMessage))
+    {
+        <AlertBox Type="AlertType.Success" Message="@_successMessage" />
+    }
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Select Course</label>
+                    <select class="form-select" @bind="_selectedCourseId" @bind:after="OnCourseSelected">
+                        <option value="@Guid.Empty">-- Select a Course --</option>
+                        @foreach (var course in _myCourses)
+                        {
+                            <option value="@course.Id">@course.Code - @course.Title</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_selectedCourseId != Guid.Empty)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-0">
+                <form @onsubmit="SubmitAllGrades">
+                    <GradeTable Grades="_gradeRecords" IsEditable="true" StudentNames="_studentNames" />
+                    
+                    @if (_gradeRecords.Any())
+                    {
+                        <div class="p-3 bg-light border-top d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary fw-bold px-4">
+                                @if (_isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                    <span>Submitting...</span>
+                                }
+                                else
+                                {
+                                    <span>Submit Grades</span>
+                                }
+                            </button>
+                        </div>
+                    }
+                </form>
+            </div>
+        </div>
+    }
+
+</AuthGuard>
+
+@code {
+    private IEnumerable<Course> _myCourses = new List<Course>();
+    private Guid _selectedCourseId = Guid.Empty;
+    private List<GradeRecord> _gradeRecords = new();
+    private Dictionary<Guid, string> _studentNames = new();
+    private string _successMessage = string.Empty;
+    private bool _isSubmitting = false;
+
+    protected override void OnInitialized()
+    {
+        if (AuthStateService.CurrentUser != null)
+        {
+            _myCourses = CourseService.GetCoursesByFaculty(AuthStateService.CurrentUser.Id).OrderBy(c => c.Code).ToList();
+        }
+    }
+
+    private void OnCourseSelected()
+    {
+        _successMessage = string.Empty;
+        _gradeRecords.Clear();
+        _studentNames.Clear();
+
+        if (_selectedCourseId != Guid.Empty)
+        {
+            var enrolledStudents = CourseService.GetEnrolledStudents(_selectedCourseId).ToList();
+            var existingGrades = GradeService.GetGradesForCourse(_selectedCourseId).ToList();
+
+            foreach (var student in enrolledStudents)
+            {
+                _studentNames[student.Id] = student.FullName;
+
+                var existingGrade = existingGrades.FirstOrDefault(g => g.StudentId == student.Id);
+                if (existingGrade != null)
+                {
+                    _gradeRecords.Add(new GradeRecord 
+                    { 
+                        Id = existingGrade.Id,
+                        StudentId = student.Id, 
+                        CourseId = _selectedCourseId, 
+                        Marks = existingGrade.Marks 
+                    });
+                }
+                else
+                {
+                    _gradeRecords.Add(new GradeRecord 
+                    { 
+                        StudentId = student.Id, 
+                        CourseId = _selectedCourseId, 
+                        Marks = 0 
+                    });
+                }
+            }
+        }
+    }
+
+    private async Task SubmitAllGrades()
+    {
+        // Validate all
+        bool allValid = true;
+        foreach (var grade in _gradeRecords)
+        {
+            if (!grade.IsValid())
+            {
+                allValid = false;
+                break;
+            }
+        }
+
+        if (!allValid)
+        {
+            // Note: simple handling, would be better to show inline errors on GradeTable
+            // The requirement says "Validate marks using IValidatable."
+            return;
+        }
+
+        _isSubmitting = true;
+        
+        // Simulate processing time
+        await Task.Delay(500);
+
+        foreach (var grade in _gradeRecords)
+        {
+            GradeService.SubmitGrade(grade);
+        }
+
+        _successMessage = "Grades submitted successfully!";
+        _isSubmitting = false;
+    }
+}

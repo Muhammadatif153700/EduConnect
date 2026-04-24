@@ -1,0 +1,45 @@
+@inject AuthStateService AuthStateService
+@inject NavigationManager NavigationManager
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public Role[]? AllowedRoles { get; set; }
+
+    protected override void OnInitialized()
+    {
+        AuthStateService.OnAuthStateChanged += StateHasChanged;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!AuthStateService.IsLoggedIn)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
+        if (AllowedRoles != null && AllowedRoles.Length > 0 && AuthStateService.CurrentRole.HasValue)
+        {
+            if (!AllowedRoles.Contains(AuthStateService.CurrentRole.Value))
+            {
+                NavigationManager.NavigateTo("/unauthorized");
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthStateService.OnAuthStateChanged -= StateHasChanged;
+    }
+}
+
+@if (AuthStateService.IsLoggedIn)
+{
+    @if (AllowedRoles == null || AllowedRoles.Length == 0 || (AuthStateService.CurrentRole.HasValue && AllowedRoles.Contains(AuthStateService.CurrentRole.Value)))
+    {
+        @ChildContent
+    }
+}

@@ -1,0 +1,118 @@
+@page "/admin/notifications"
+@inject NotificationService NotificationService
+@inject IRepository<Models.Student> StudentRepo
+@inject IRepository<Models.Faculty> FacultyRepo
+@inject IRepository<Models.Admin> AdminRepo
+@inject AuthStateService AuthStateService
+
+<AuthGuard AllowedRoles="new[] { Role.Admin }">
+    <div class="mb-4">
+        <h2 class="fw-bold">Broadcast Announcement</h2>
+        <p class="text-muted">Send notifications to specific user groups.</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_successMessage))
+    {
+        <AlertBox Type="AlertType.Success" Message="@_successMessage" />
+    }
+
+    <div class="row">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-body p-4">
+                    <form @onsubmit="SendBroadcast">
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Target Roles</label>
+                            <div class="d-flex gap-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="chkStudents" @bind="_sendToStudents">
+                                    <label class="form-check-label" for="chkStudents">Students</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="chkFaculty" @bind="_sendToFaculty">
+                                    <label class="form-check-label" for="chkFaculty">Faculty</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="chkAdmins" @bind="_sendToAdmins">
+                                    <label class="form-check-label" for="chkAdmins">Admins</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Message</label>
+                            <textarea class="form-control" rows="4" @bind="_message" required placeholder="Type your announcement here..."></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary fw-bold px-4" disabled="@(!_sendToStudents && !_sendToFaculty && !_sendToAdmins || string.IsNullOrWhiteSpace(_message))">
+                            <i class="bi bi-send-fill me-2"></i> Send Broadcast
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</AuthGuard>
+
+@code {
+    private bool _sendToStudents = true;
+    private bool _sendToFaculty = false;
+    private bool _sendToAdmins = false;
+    private string _message = string.Empty;
+    private string _successMessage = string.Empty;
+
+    private void SendBroadcast()
+    {
+        if (string.IsNullOrWhiteSpace(_message)) return;
+
+        int sentCount = 0;
+
+        if (_sendToStudents)
+        {
+            var students = StudentRepo.GetAll();
+            foreach (var student in students)
+            {
+                NotificationService.SendNotification(new Notification
+                {
+                    UserId = student.Id,
+                    Type = NotificationType.Announcement,
+                    Message = _message
+                });
+                sentCount++;
+            }
+        }
+
+        if (_sendToFaculty)
+        {
+            var faculty = FacultyRepo.GetAll();
+            foreach (var f in faculty)
+            {
+                NotificationService.SendNotification(new Notification
+                {
+                    UserId = f.Id,
+                    Type = NotificationType.Announcement,
+                    Message = _message
+                });
+                sentCount++;
+            }
+        }
+
+        if (_sendToAdmins)
+        {
+            var admins = AdminRepo.GetAll();
+            foreach (var a in admins)
+            {
+                NotificationService.SendNotification(new Notification
+                {
+                    UserId = a.Id,
+                    Type = NotificationType.Announcement,
+                    Message = _message
+                });
+                sentCount++;
+            }
+        }
+
+        _successMessage = $"Broadcast sent successfully to {sentCount} users.";
+        _message = string.Empty; // Reset form
+    }
+}

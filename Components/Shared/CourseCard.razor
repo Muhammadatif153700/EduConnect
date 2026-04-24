@@ -1,0 +1,65 @@
+@code {
+    [Parameter, EditorRequired]
+    public Course Course { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<Course> OnEnroll { get; set; }
+    
+    [Parameter]
+    public bool ShowEnrollButton { get; set; } = false;
+
+    private int ProgressPercentage => Course.MaxCapacity == 0 ? 0 : (int)((double)Course.CurrentEnrollment / Course.MaxCapacity * 100);
+
+    private string StatusBadgeClass => Course.Status switch
+    {
+        CourseStatus.Open => "bg-success",
+        CourseStatus.AlmostFull => "bg-warning text-dark",
+        CourseStatus.Full => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private async Task HandleEnrollClick()
+    {
+        if (OnEnroll.HasDelegate)
+        {
+            await OnEnroll.InvokeAsync(Course);
+        }
+    }
+}
+
+<div class="card shadow-sm h-100 border-0 rounded-3">
+    <div class="card-header border-bottom-0 pt-3 pb-0">
+        <div class="d-flex justify-content-between align-items-center">
+            <span class="badge bg-light text-primary border">@Course.Code</span>
+            <span class="badge @StatusBadgeClass">@Course.Status</span>
+        </div>
+    </div>
+    <div class="card-body">
+        <h5 class="card-title fw-bold">@Course.Title</h5>
+        <p class="text-muted mb-4"><i class="bi bi-clock"></i> @Course.CreditHours Credits</p>
+        
+        <div class="mb-3">
+            <div class="d-flex justify-content-between small text-muted mb-1">
+                <span>Enrollment</span>
+                <span>@Course.CurrentEnrollment / @Course.MaxCapacity</span>
+            </div>
+            <div class="progress" style="height: 8px;">
+                <div class="progress-bar @(Course.Status == CourseStatus.Full ? "bg-danger" : "bg-primary")" 
+                     role="progressbar" 
+                     style="width: @ProgressPercentage%" 
+                     aria-valuenow="@ProgressPercentage" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100"></div>
+            </div>
+        </div>
+        
+        @if (ShowEnrollButton)
+        {
+            <button class="btn btn-outline-primary w-100 mt-2" 
+                    disabled="@(Course.Status == CourseStatus.Full)"
+                    @onclick="HandleEnrollClick">
+                @(Course.Status == CourseStatus.Full ? "Full" : "Enroll")
+            </button>
+        }
+    </div>
+</div>

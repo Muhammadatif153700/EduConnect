@@ -1,0 +1,108 @@
+@inject NotificationService NotificationService
+@inject AuthStateService AuthStateService
+@implements IDisposable
+
+@code {
+    private int _unreadCount = 0;
+    private List<Notification> _latestNotifications = new();
+
+    protected override void OnInitialized()
+    {
+        // Subscribe to events
+        NotificationService.OnNewNotification += HandleNewNotification;
+        AuthStateService.OnAuthStateChanged += HandleAuthChange;
+        
+        RefreshData();
+    }
+
+    private void HandleNewNotification(Notification notification)
+    {
+        // Only update if the notification is for the current user or is a broadcast (UserId empty/guid empty?)
+        // Let's assume NotificationService handles user-specific broadcasts.
+        if (AuthStateService.CurrentUser != null && notification.UserId == AuthStateService.CurrentUser.Id)
+        {
+            RefreshData();
+            // Important: Call StateHasChanged to trigger a re-render on the UI thread
+            InvokeAsync(StateHasChanged);
+        }
+    }
+    
+    private void HandleAuthChange()
+    {
+        RefreshData();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshData()
+    {
+        if (AuthStateService.CurrentUser != null)
+        {
+            var userId = AuthStateService.CurrentUser.Id;
+            _unreadCount = NotificationService.GetUnreadCount(userId);
+            _latestNotifications = NotificationService.GetNotificationsForUser(userId).Take(5).ToList();
+        }
+        else
+        {
+            _unreadCount = 0;
+            _latestNotifications.Clear();
+        }
+    }
+
+    private void MarkAsRead(Guid notificationId)
+    {
+        NotificationService.MarkAsRead(notificationId);
+        RefreshData();
+    }
+
+    public void Dispose()
+    {
+        NotificationService.OnNewNotification -= HandleNewNotification;
+        AuthStateService.OnAuthStateChanged -= HandleAuthChange;
+    }
+}
+
+@if (AuthStateService.IsLoggedIn)
+{
+    <div class="dropdown">
+        <button class="btn btn-link nav-link position-relative dropdown-toggle-hidden" type="button" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-bell fs-5 text-secondary"></i>
+            @if (_unreadCount > 0)
+            {
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">
+                    @_unreadCount
+                    <span class="visually-hidden">unread messages</span>
+                </span>
+            }
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="notificationDropdown" style="width: 320px;">
+            <li><h6 class="dropdown-header fw-bold">Notifications</h6></li>
+            @if (!_latestNotifications.Any())
+            {
+                <li><span class="dropdown-item text-muted small">No notifications</span></li>
+            }
+            else
+            {
+                @foreach (var note in _latestNotifications)
+                {
+                    <li>
+                        <div class="dropdown-item py-2 border-bottom @(!note.IsRead ? "bg-light" : "")" style="cursor: pointer" @onclick="() => MarkAsRead(note.Id)">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <span class="badge @(note.Type == NotificationType.Announcement ? "bg-danger" : "bg-primary") mb-1">@note.Type</span>
+                                    <p class="mb-1 small text-wrap">@note.Message</p>
+                                    <small class="text-muted" style="font-size: 0.7rem;">@note.CreatedAt.ToString("g")</small>
+                                </div>
+                                @if (!note.IsRead)
+                                {
+                                    <span class="p-1 bg-primary rounded-circle mt-1"></span>
+                                }
+                            </div>
+                        </div>
+                    </li>
+                }
+            }
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-center small text-primary" href="/notifications">View All</a></li>
+        </ul>
+    </div>
+}

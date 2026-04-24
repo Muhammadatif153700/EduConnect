@@ -1,0 +1,84 @@
+@page "/student/enroll"
+@inject ICourseService CourseService
+@inject AuthStateService AuthStateService
+
+<AuthGuard AllowedRoles="new[] { Role.Student }">
+    <div class="mb-4">
+        <h2 class="fw-bold">Course Enrollment</h2>
+        <p class="text-muted">Register for available courses below.</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <AlertBox Type="AlertType.Error" Message="@_errorMessage" />
+    }
+    
+    @if (!string.IsNullOrEmpty(_successMessage))
+    {
+        <AlertBox Type="AlertType.Success" Message="@_successMessage" />
+    }
+
+    <div class="row g-4">
+        @if (!_availableCourses.Any())
+        {
+            <div class="col-12 text-center text-muted py-5">
+                <p>No available courses to enroll in at this time.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var course in _availableCourses)
+            {
+                <div class="col-md-6 col-lg-4">
+                    <CourseCard Course="course" ShowEnrollButton="true" OnEnroll="HandleEnroll" />
+                </div>
+            }
+        }
+    </div>
+</AuthGuard>
+
+@code {
+    private IEnumerable<Course> _availableCourses = new List<Course>();
+    private string _errorMessage = string.Empty;
+    private string _successMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        LoadCourses();
+    }
+
+    private void LoadCourses()
+    {
+        if (AuthStateService.CurrentUser == null) return;
+        
+        var allCourses = CourseService.GetAllCourses();
+        var myEnrollments = CourseService.GetStudentEnrollments(AuthStateService.CurrentUser.Id).Select(e => e.CourseId).ToList();
+        
+        // Show courses the student is not currently enrolled in
+        _availableCourses = allCourses.Where(c => !myEnrollments.Contains(c.Id)).OrderBy(c => c.Title).ToList();
+    }
+
+    private void HandleEnroll(Course course)
+    {
+        _errorMessage = string.Empty;
+        _successMessage = string.Empty;
+
+        try
+        {
+            if (AuthStateService.CurrentUser != null)
+            {
+                CourseService.EnrollStudent(AuthStateService.CurrentUser.Id, course.Id);
+                _successMessage = $"Successfully enrolled in {course.Code} - {course.Title}.";
+                LoadCourses(); // Refresh list to remove the enrolled course
+            }
+        }
+        catch (CourseFullException ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+}

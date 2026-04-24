@@ -1,0 +1,76 @@
+@inject ICourseService CourseService
+
+@code {
+    [Parameter, EditorRequired]
+    public List<GradeRecord> Grades { get; set; } = new();
+
+    [Parameter]
+    public bool IsEditable { get; set; } = false;
+
+    // Faculty mode: we need to display student names
+    [Parameter]
+    public Dictionary<Guid, string>? StudentNames { get; set; }
+
+    // Student mode: we need to display course codes
+    [Parameter]
+    public Dictionary<Guid, string>? CourseNames { get; set; }
+
+    private string GetRowClass(string letterGrade) => letterGrade switch
+    {
+        "A" or "B" => "table-success",
+        "C" or "D" => "table-warning",
+        "F" => "table-danger",
+        _ => ""
+    };
+}
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                @if (IsEditable)
+                {
+                    <th>Student Name</th>
+                    <th style="width: 150px;">Marks (0-100)</th>
+                }
+                else
+                {
+                    <th>Course</th>
+                    <th>Marks</th>
+                }
+                <th>Letter Grade</th>
+                <th>Grade Point</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Grades.Any())
+            {
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-3">No grades available.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var grade in Grades)
+                {
+                    <tr class="@(!IsEditable ? GetRowClass(grade.LetterGrade) : "")">
+                        @if (IsEditable)
+                        {
+                            <td>@(StudentNames != null && StudentNames.ContainsKey(grade.StudentId) ? StudentNames[grade.StudentId] : "Unknown Student")</td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm" @bind="grade.Marks" min="0" max="100" />
+                            </td>
+                        }
+                        else
+                        {
+                            <td>@(CourseNames != null && CourseNames.ContainsKey(grade.CourseId) ? CourseNames[grade.CourseId] : "Unknown Course")</td>
+                            <td>@grade.Marks</td>
+                        }
+                        <td><span class="fw-bold">@grade.LetterGrade</span></td>
+                        <td>@grade.GradePoint.ToString("0.0")</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>

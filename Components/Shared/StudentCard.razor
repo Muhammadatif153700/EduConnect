@@ -1,0 +1,38 @@
+@code {
+    [Parameter, EditorRequired]
+    public Student Student { get; set; } = default!;
+
+    private string CgpaBadgeClass => Student.CGPA switch
+    {
+        >= 3.5 => "bg-success",
+        >= 3.0 => "bg-primary",
+        >= 2.5 => "bg-warning text-dark",
+        _ => "bg-danger"
+    };
+}
+
+<div class="card shadow-sm h-100 border-0 rounded-3">
+    <div class="card-body text-center">
+        <div class="mb-3">
+            <div class="avatar bg-light text-primary rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 64px; height: 64px; font-size: 24px;">
+                @if (!string.IsNullOrEmpty(Student.FullName))
+                {
+                    @Student.FullName.Substring(0, 1).ToUpper()
+                }
+            </div>
+        </div>
+        <h5 class="card-title fw-bold">@Student.FullName</h5>
+        <p class="text-muted small mb-3">@Student.Email</p>
+        
+        <div class="d-flex justify-content-between align-items-center px-3 mt-4">
+            <div class="text-start">
+                <small class="text-muted d-block">Semester</small>
+                <span class="fw-bold">@Student.Semester</span>
+            </div>
+            <div class="text-end">
+                <small class="text-muted d-block">CGPA</small>
+                <span class="badge @CgpaBadgeClass fs-6">@Student.CGPA.ToString("0.00")</span>
+            </div>
+        </div>
+    </div>
+</div>

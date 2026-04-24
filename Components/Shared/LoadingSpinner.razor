@@ -1,0 +1,20 @@
+@code {
+    [Parameter]
+    public bool IsLoading { get; set; } = false;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}
+
+@if (IsLoading)
+{
+    <div class="d-flex justify-content-center align-items-center p-5">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    @ChildContent
+}
